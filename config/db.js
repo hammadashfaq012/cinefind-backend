@@ -1,8 +1,7 @@
-// MongoDB connection utility.
-// Uses Mongoose to connect to the Atlas cluster defined in MONGO_URI.
-// Exits the process on failure so the server doesn't run without a database.
-
 import mongoose from "mongoose";
+import dns from "dns";
+
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
 const connectDB = async () => {
   try {

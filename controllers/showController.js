@@ -1,12 +1,5 @@
-// Controller functions for all show-related API endpoints.
-// Each function handles one route and interacts with the Show model.
-
 import Show from "../models/Show.js";
 
-/**
- * Converts a Mongoose document into a plain object compatible with the React frontend.
- * Renames "showId" to "id" and strips internal MongoDB fields (_id, __v).
- */
 const transformShow = (show) => {
   const obj = show.toObject();
   obj.id = obj.showId;
@@ -16,12 +9,6 @@ const transformShow = (show) => {
   return obj;
 };
 
-/**
- * GET /api/shows/search?q=<query>
- * Searches shows by name OR genre (case-insensitive regex).
- * Returns an empty array if the query is empty or missing.
- * Example: /api/shows/search?q=horror → shows with "Horror" genre or "horror" in name
- */
 const searchShows = async (req, res) => {
   try {
     const query = req.query.q;
@@ -30,7 +17,6 @@ const searchShows = async (req, res) => {
       return res.status(200).json([]);
     }
 
-    // Use Mongoose $regex (safer than new RegExp which is vulnerable to injection)
     const regex = { $regex: query, $options: "i" };
 
     const shows = await Show.find({
@@ -46,11 +32,6 @@ const searchShows = async (req, res) => {
   }
 };
 
-/**
- * GET /api/shows/:id
- * Returns a single show by its numeric showId.
- * Returns 400 if the ID is not a valid number, 404 if not found.
- */
 const getShowById = async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -71,11 +52,6 @@ const getShowById = async (req, res) => {
   }
 };
 
-/**
- * GET /api/shows
- * Returns all shows in the database.
- * Used by the homepage featured section and explore recommended section.
- */
 const getShows = async (req, res) => {
   try {
     const shows = await Show.find();
@@ -85,30 +61,82 @@ const getShows = async (req, res) => {
   }
 };
 
-/**
- * POST /api/shows
- * Creates a new show. Auto-generates a unique showId using Date.now().
- */
 const createShow = async (req, res) => {
   try {
+    const { name, summary, image, genres, rating, language, status, runtime, officialSite } = req.body;
+
+    if (!name || name.trim() === "") {
+      return res.status(400).json({ message: "Show name is required" });
+    }
+
+    const formattedSummary = summary && summary.trim() !== ""
+      ? `<p>${summary.trim()}</p>`
+      : "";
+
     const showId = Date.now();
-    const show = await Show.create({ ...req.body, showId });
+    const show = await Show.create({
+      showId,
+      name: name.trim(),
+      summary: formattedSummary,
+      image: {
+        medium: image?.medium || "",
+        original: image?.original || "",
+      },
+      genres: Array.isArray(genres) ? genres : [],
+      rating: { average: Number(rating?.average) || 0 },
+      language: language || "",
+      status: status || "",
+      runtime: runtime != null ? Number(runtime) : null,
+      officialSite: officialSite || "",
+    });
+
     res.status(201).json(transformShow(show));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-/**
- * PUT /api/shows/:id
- * Updates an existing show by its showId.
- * Returns 404 if no show with that ID exists.
- */
 const updateShow = async (req, res) => {
   try {
+    const id = Number(req.params.id);
+
+    if (isNaN(id)) {
+      return res.status(400).json({ message: "Invalid show ID" });
+    }
+
+    const { name, summary, image, genres, rating, language, status, runtime, officialSite } = req.body;
+
+    if (name !== undefined && name.trim() === "") {
+      return res.status(400).json({ message: "Show name cannot be empty" });
+    }
+
+    const updateData = {};
+
+    if (name !== undefined) updateData.name = name.trim();
+
+    if (summary !== undefined) {
+      updateData.summary = summary.trim() !== ""
+        ? `<p>${summary.trim()}</p>`
+        : "";
+    }
+
+    if (image !== undefined) {
+      updateData.image = {
+        medium: image?.medium || "",
+        original: image?.original || "",
+      };
+    }
+
+    if (genres !== undefined) updateData.genres = Array.isArray(genres) ? genres : [];
+    if (rating !== undefined) updateData.rating = { average: Number(rating?.average) || 0 };
+    if (language !== undefined) updateData.language = language;
+    if (status !== undefined) updateData.status = status;
+    if (runtime !== undefined) updateData.runtime = runtime != null ? Number(runtime) : null;
+    if (officialSite !== undefined) updateData.officialSite = officialSite;
+
     const show = await Show.findOneAndUpdate(
-      { showId: Number(req.params.id) },
-      req.body,
+      { showId: id },
+      updateData,
       { new: true }
     );
 
@@ -122,11 +150,6 @@ const updateShow = async (req, res) => {
   }
 };
 
-/**
- * DELETE /api/shows/:id
- * Deletes a show by its showId.
- * Returns 404 if no show with that ID exists.
- */
 const deleteShow = async (req, res) => {
   try {
     const show = await Show.findOneAndDelete({ showId: Number(req.params.id) });
